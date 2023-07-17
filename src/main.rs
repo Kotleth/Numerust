@@ -1,14 +1,50 @@
 use unicode_width::UnicodeWidthStr;
+use std::time::Instant;
+use std::{thread, time};
+
+// This is only a testing file for numerical methods and does not change how the library works //
 
 fn main() {
 
-    let sample_arr: &[f32] = &[20.0, 70.0, -30.0, 5.0];
-    let sample_mat: &[f32] = &[20.0, 1.0, 1.0, -1.0, 2.0, -30.0, 3.0, 1.0, -2.0, 3.0, -25.0, 5.1, 2.1, 2.0, 1.11, 27.3];
-    let length= 4;
-    // let sample_arr: &[f32] = &[11.0, 13.0];
-    // let sample_mat: &[f32] = &[2.0, 3.0, 5.0, 7.0];
+    // let sample_arr: &[f32] = &[20.0, 70.0, -30.0, 5.0];
+    // let sample_mat: &[f32] = &[20.0, 1.0, 1.0, -1.0, 2.0, -30.0, 3.0, 1.0, -2.0, 3.0, -25.0, 5.1, 2.1, 2.0, 1.11, 27.3];
+    // let length= 4;
+    let sample_arr: &[f32] = &[2.0, 4.0, 6.0, 8.0];
+    let sample_mat: &[f32] = &[2.0, 3.0, 5.0, 7.0];
     // let length= 2;
-    let _p = gauss_seidel(&sample_mat,&sample_arr, length, length).unwrap();
+    // let _p = gauss_seidel(&sample_mat,&sample_arr, length, length).unwrap();
+    least_square_approximation(sample_mat, sample_arr, 4)
+
+}
+
+pub fn least_square_approximation(x_arr: &[f32], y_arr: &[f32], degree: usize) //-> (*const f32, usize)
+{ // TODO check at the beginning if x_arr.len() == y_arr.len()
+    let mut x_mat: Vec<Vec<f32>> = Vec::new();
+    let mut y_vec: Vec<Vec<f32>> = Vec::new();
+    for i in 0..degree {
+        x_mat.push(Vec::new());
+        y_vec.push(Vec::new());
+        y_vec[i].push(0.0);
+        for num in 0..y_arr.len() {
+            y_vec[i][0] += f32::powf(x_arr[num], i as f32) * y_arr[num];
+        }
+        for j in 0..degree {
+            if i == 0 && j == 0 {
+                x_mat[i].push(degree as f32);
+            } else {
+                x_mat[i].push(0.0);
+                for x in x_arr {
+                    x_mat[i][j] += f32::powf(*x, i as f32 + j as f32);
+                }
+            }
+
+        }
+
+    }
+
+    vis_mat(x_mat);
+    vis_mat(y_vec);
+    // we need to perform y_vec * x_mat^-1 now and it will be finished
 }
 
 
@@ -96,10 +132,11 @@ pub fn tri_mat_inv(mat_1: Vec<Vec<f32>>, shape: i32) -> Result<Vec<Vec<f32>>, St
                     new_mat[i].push(0.0);
                 } else if shape == 0 { // left-side triangular matrix TODO This need fixes
                     let mut temp_value = 0.0;
-                    for k in j..i {
-                        temp_value += mat_1[i][k] * new_mat[k][j];
+                    for k in i..j {
+                        println!("{} and {}", mat_1[k][j], new_mat[i][k]);
+                        temp_value += mat_1[k][j] * new_mat[i][k];
                     }
-                    new_mat[i].push(-temp_value/mat_1[i][i]);
+                    new_mat[i].push(-temp_value/mat_1[j][j]);
                 } else { return Err(String::from("Type of a triangular matrix has to be L or R")) }
             }
         }

@@ -1,4 +1,29 @@
 use unicode_width::UnicodeWidthStr;
+use std::time::Instant;
+use std::{time};
+
+#[no_mangle]
+pub fn least_square_approximation(x_arr: &[f32], y_arr: &[f32], degree: i32) //-> (*const f32, usize)
+{
+    let mut x_mat = Vec::new();
+    let mut y_vec = Vec::new();
+    for i in 0..degree {
+        x_mat.push(Vec::new());
+        for j in 0..degree {
+            if i == 0 && j == 0 {
+                x_mat[i].push(degree as f32);
+            } else {
+                x_mat[i].push(0.0);
+                for x in *x_arr {
+                    x_mat[i][j] += f32::powf(x, i as f32 + j as f32);
+                }
+            }
+
+        }
+
+    }
+    // placeholder for now...
+}
 
 #[no_mangle]
 pub fn newton_optimisation_polynomial(x_multipliers: &[f32], x_first: f32, error: f32) -> f32 {
@@ -16,8 +41,8 @@ pub fn newton_optimisation_polynomial(x_multipliers: &[f32], x_first: f32, error
 
 #[no_mangle]
 // pub fn gauss_seidel(matrix: &[f32], b_slice: &[f32], num_rows: usize, num_columns: usize) -> *const f32 {
-pub fn gauss_seidel(matrix: &[f32], b_slice: &[f32], num_rows: usize, num_columns: usize) -> (*const f32, usize){
-    let a_matrix = make_matrix(matrix, num_rows, num_columns).unwrap();
+pub fn gauss_seidel(matrix: &[f32], b_slice: &[f32], num_rows: usize, timeout: u64) -> (*const f32, usize){
+    let a_matrix = make_matrix(matrix, num_rows, num_rows).unwrap();
     let mut b_vector: Vec<Vec<f32>> = Vec::new();
     let mut n = 0;
     for row in b_slice {
@@ -61,8 +86,13 @@ pub fn gauss_seidel(matrix: &[f32], b_slice: &[f32], num_rows: usize, num_column
     let mat_ld_inv = tri_mat_inv(mat_add(mat_low.clone(), mat_diag.clone()).unwrap(), 1).unwrap();
     let bsc_mat = mat_mul(mat_neg(mat_ld_inv.clone()), mat_up.clone()).unwrap();
     let c_mat = mat_mul(mat_ld_inv.clone(), b_vector.clone()).unwrap();
-    for _ in 0..12 {
+    let start = Instant::now();
+    let mut elapsed = start.elapsed();
+    // let mut progress =
+    while elapsed <= time::Duration::from_millis(timeout) {
+        elapsed = start.elapsed();
         new_x_vect = mat_add(mat_mul(bsc_mat.clone(), new_x_vect).unwrap(), c_mat.clone()).unwrap();
+        // let previous_x_vect = new_x_vect.copy();
     }
     let mut temp_vec = Vec::new();
     for i in &new_x_vect {
@@ -100,10 +130,10 @@ pub fn tri_mat_inv(mat_1: Vec<Vec<f32>>, shape: i32) -> Result<Vec<Vec<f32>>, St
                     new_mat[i].push(0.0);
                 } else if shape == 0 { // left-side triangular matrix TODO This need fixes
                     let mut temp_value = 0.0;
-                    for k in j..i {
-                        temp_value += mat_1[i][k] * new_mat[k][j];
+                    for k in i..j {
+                        temp_value += mat_1[k][j] * new_mat[i][k];
                     }
-                    new_mat[i].push(-temp_value/mat_1[i][i]);
+                    new_mat[i].push(-temp_value/mat_1[j][j]);
                 } else { return Err(String::from("Type of a triangular matrix has to be L or R")) }
             }
         }
