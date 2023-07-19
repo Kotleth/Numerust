@@ -53,3 +53,22 @@ def gauss_seidel(mat_a, vec_b, timeout=500):
     x = result_array.copy()
     my_lib.free(result_ptr)
     return x
+
+
+def matrix_inv(mat_a):
+    my_lib.matrix_inv.argtypes = [np.ctypeslib.ndpointer(dtype=np.float32), ctypes.c_int, ctypes.c_int]
+    my_lib.matrix_inv.restype = ctypes.POINTER(ctypes.c_float)
+
+    a_matrix = np.array(mat_a, dtype=np.float32)
+    n = int(np.sqrt(len(a_matrix)))
+
+    result_ptr = my_lib.matrix_inv(a_matrix, len(mat_a), n)
+    result_array = np.ctypeslib.as_array(result_ptr, shape=(len(mat_a),))
+    x = result_array.copy()
+    my_lib.free(result_ptr)
+    temp_mat = []
+    for i in range(n):
+        temp_mat.append([])
+        for j in range(n):
+            temp_mat[i].append(x[i*n + j])
+    return np.array(temp_mat)

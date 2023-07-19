@@ -9,13 +9,67 @@ fn main() {
     // let sample_arr: &[f32] = &[20.0, 70.0, -30.0, 5.0];
     // let sample_mat: &[f32] = &[20.0, 1.0, 1.0, -1.0, 2.0, -30.0, 3.0, 1.0, -2.0, 3.0, -25.0, 5.1, 2.1, 2.0, 1.11, 27.3];
     // let length= 4;
-    let sample_arr: &[f32] = &[2.0, 4.0, 6.0, 8.0];
-    let sample_mat: &[f32] = &[2.0, 3.0, 5.0, 7.0];
+    // let sample_arr: &[f32] = &[20.0, 1.0, 1.0, -1.0, 2.0, -30.0, 3.0, 1.0, -2.0, 3.0, -25.0, 5.1, 2.1, 2.0, 1.11, 27.3];
+    let sample_arr: &[f32] = &[2.0, 3.0, 5.0, 1.0, 4.0, 6.0, 7.0, 8.0, 9.0];
+    // let sample_arr: &[f32] = &[1.0, 3.0, 2.0, 4.0];
+    // let sample_mat: &[f32] = &[2.0, 3.0, 5.0, 7.0];
     // let length= 2;
     // let _p = gauss_seidel(&sample_mat,&sample_arr, length, length).unwrap();
-    least_square_approximation(sample_mat, sample_arr, 4)
+    // least_square_approximation(sample_mat, sample_arr, 4);
+    decomposition_lu(sample_arr, f32::sqrt(sample_arr.len() as f32) as usize);
 
 }
+
+fn decomposition_lu(x_arr: &[f32], n: usize) {
+    let mut l: Vec<Vec<f32>> = Vec::new();
+    let mut u: Vec<Vec<f32>> = Vec::new();
+    for i in 0..n {
+        l.push(Vec::new());
+        u.push(Vec::new());
+        for j in 0..n {
+            if i <= j {
+                u[i].push(x_arr[i * n + j]);
+                for k in 0..i {
+                    u[i][j] -= l[i][k] * u[k][j];
+                }
+                if i == j {
+                    l[i].push(1.0);
+                } else {
+                    l[i].push(0.0);
+                }
+            } else {
+                l[i].push(x_arr[i * n + j]);
+                for k in 0..j {
+                    l[i][j] -= l[i][k] * u[k][j];
+                }
+                l[i][j] /= u[j][j];
+                u[i].push(0.0);
+            }
+        }
+    }
+    let inv_l = tri_mat_inv(l.clone(), 1).unwrap();
+    let inv_u = tri_mat_inv(u.clone(), 0).unwrap();
+    // vis_mat(l.clone());
+    // vis_mat(u.clone());
+    // vis_mat(mat_mul(l, u).unwrap());
+    vis_mat(mat_mul(inv_u, inv_l).unwrap());
+
+    /*
+    [[1.         0.         0.        ]
+     [0.14285714 1.         0.        ]
+     [0.28571429 0.25       1.        ]]
+    [[7.         8.         9.        ]
+     [0.         2.85714286 4.71428571]
+     [0.         0.         1.25      ]]
+     */
+}
+
+// pub fn matrix_inv(x_arr: &[f32], n: i32) {
+//     let mut x_mat: Vec<Vec<f32>> = Vec::new();
+//     for i in 0..n {
+//         x_mat.push(Vec::new());
+//     }
+// }
 
 pub fn least_square_approximation(x_arr: &[f32], y_arr: &[f32], degree: usize) //-> (*const f32, usize)
 { // TODO check at the beginning if x_arr.len() == y_arr.len()
@@ -133,7 +187,6 @@ pub fn tri_mat_inv(mat_1: Vec<Vec<f32>>, shape: i32) -> Result<Vec<Vec<f32>>, St
                 } else if shape == 0 { // left-side triangular matrix TODO This need fixes
                     let mut temp_value = 0.0;
                     for k in i..j {
-                        println!("{} and {}", mat_1[k][j], new_mat[i][k]);
                         temp_value += mat_1[k][j] * new_mat[i][k];
                     }
                     new_mat[i].push(-temp_value/mat_1[j][j]);

@@ -2,28 +2,78 @@ use unicode_width::UnicodeWidthStr;
 use std::time::Instant;
 use std::{time};
 
+// pub fn matrix_inv(x_arr: &[f32], n: usize) -> (*const f32, usize) {
+//     decomposition_lu
+// }
 #[no_mangle]
-pub fn least_square_approximation(x_arr: &[f32], y_arr: &[f32], degree: i32) //-> (*const f32, usize)
-{
-    let mut x_mat = Vec::new();
-    let mut y_vec = Vec::new();
-    for i in 0..degree {
-        x_mat.push(Vec::new());
-        for j in 0..degree {
-            if i == 0 && j == 0 {
-                x_mat[i].push(degree as f32);
-            } else {
-                x_mat[i].push(0.0);
-                for x in *x_arr {
-                    x_mat[i][j] += f32::powf(x, i as f32 + j as f32);
+pub fn matrix_inv(x_arr: &[f32], n: usize) -> (*const f32, usize) {
+    let mut l: Vec<Vec<f32>> = Vec::new();
+    let mut u: Vec<Vec<f32>> = Vec::new();
+    for i in 0..n {
+        l.push(Vec::new());
+        u.push(Vec::new());
+        for j in 0..n {
+            if i <= j {
+                u[i].push(x_arr[i * n + j]);
+                for k in 0..i {
+                    u[i][j] -= l[i][k] * u[k][j];
                 }
+                if i == j {
+                    l[i].push(1.0);
+                } else {
+                    l[i].push(0.0);
+                }
+            } else {
+                l[i].push(x_arr[i * n + j]);
+                for k in 0..j {
+                    l[i][j] -= l[i][k] * u[k][j];
+                }
+                l[i][j] /= u[j][j];
+                u[i].push(0.0);
             }
-
         }
-
     }
-    // placeholder for now...
+    let inv_l = tri_mat_inv(l.clone(), 1).unwrap();
+    let inv_u = tri_mat_inv(u.clone(), 0).unwrap();
+    let inv_mat = mat_mul(inv_u, inv_l).unwrap();
+    let mut temp_vec = Vec::new();
+    for i in inv_mat {
+        for j in i {
+            temp_vec.push(j);
+        }
+    }
+    let slice_ptr = temp_vec.as_slice().as_ptr();
+    let slice_len = temp_vec.len();
+    std::mem::forget(temp_vec);
+    // slice_ptr
+    (slice_ptr, slice_len)
 }
+
+// #[no_mangle]
+// pub fn least_square_approximation(x_arr: &[f32], y_arr: &[f32], degree: i32) //-> (*const f32, usize)
+// {
+//     let mut x_mat = Vec::new();
+//     let mut y_vec = Vec::new();
+//     for i in 0..degree {
+//         x_mat.push(Vec::new());
+//         for j in 0..degree {
+//             if i == 0 && j == 0 {
+//                 x_mat[i].push(degree as f32);
+//             } else {
+//                 x_mat[i].push(0.0);
+//                 for x in *x_arr {
+//                     x_mat[i][j] += f32::powf(x, i as f32 + j as f32);
+//                 }
+//             }
+//
+//         }
+//
+//     }
+//     // placeholder for now...
+        // let inv_l = tri_mat_inv(l.clone(), 1).unwrap();
+        // let inv_u = tri_mat_inv(u.clone(), 0).unwrap();
+        // mat_mul(inv_u, inv_l).unwrap()
+// }
 
 #[no_mangle]
 pub fn newton_optimisation_polynomial(x_multipliers: &[f32], x_first: f32, error: f32) -> f32 {
@@ -217,6 +267,36 @@ fn polynomial_f(x_multipliers: &[f32], x: f32) -> f32 {
     func_result
 }
 
+fn decomposition_lu(x_arr: &[f32], n: usize) -> (Vec<Vec<f32>>, Vec<Vec<f32>>) {
+    let mut l: Vec<Vec<f32>> = Vec::new();
+    let mut u: Vec<Vec<f32>> = Vec::new();
+    for i in 0..n {
+        l.push(Vec::new());
+        u.push(Vec::new());
+        for j in 0..n {
+            if i <= j {
+                u[i].push(x_arr[i * n + j]);
+                for k in 0..i {
+                    u[i][j] -= l[i][k] * u[k][j];
+                }
+                if i == j {
+                    l[i].push(1.0);
+                } else {
+                    l[i].push(0.0);
+                }
+            } else {
+                l[i].push(x_arr[i * n + j]);
+                for k in 0..j {
+                    l[i][j] -= l[i][k] * u[k][j];
+                }
+                l[i][j] /= u[j][j];
+                u[i].push(0.0);
+            }
+        }
+    }
+    (l, u)
+}
+
 
 use std::fs::File;
 use std::io::prelude::*;
@@ -243,7 +323,7 @@ fn make_matrix(vector: &[f32], num_rows: usize, num_columns: usize) -> Result<Ve
 pub fn vis_mat(vector: &[f32], num_rows: usize, num_columns: usize) -> std::io::Result<()> {
     let mut a_matrix = make_matrix(vector, num_rows, num_columns).unwrap();
     let mut width: usize = 0;
-    let mut file = File::create("XD.txt").unwrap();
+    let mut file = File::create("Matrix.txt").unwrap();
     for row in a_matrix.iter_mut() {
         for float in row.iter_mut() {
             if float.to_string().len() > width.to_string().len() {
