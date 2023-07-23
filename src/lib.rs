@@ -1,6 +1,8 @@
 use unicode_width::UnicodeWidthStr;
 use std::time::Instant;
 use std::{time};
+use std::thread;
+use std::sync::mpsc;
 
 // pub fn matrix_inv(x_arr: &[f32], n: usize) -> (*const f32, usize) {
 //     decomposition_lu
@@ -33,8 +35,16 @@ pub fn matrix_inv(x_arr: &[f32], n: usize) -> (*const f32, usize) {
             }
         }
     }
-    let inv_l = tri_mat_inv(l.clone(), 1).unwrap();
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let inv_l = tri_mat_inv(l.clone(), 1).unwrap();
+        tx.send(inv_l).unwrap();
+    });
     let inv_u = tri_mat_inv(u.clone(), 0).unwrap();
+    // let inv_l = tri_mat_inv(l.clone(), 1).unwrap();
+
+    let inv_l= rx.recv().unwrap();
+    // handle.join().unwrap();
     let inv_mat = mat_mul(inv_u, inv_l).unwrap();
     let mut temp_vec = Vec::new();
     for i in inv_mat {
@@ -42,6 +52,7 @@ pub fn matrix_inv(x_arr: &[f32], n: usize) -> (*const f32, usize) {
             temp_vec.push(j);
         }
     }
+
     let slice_ptr = temp_vec.as_slice().as_ptr();
     let slice_len = temp_vec.len();
     std::mem::forget(temp_vec);
@@ -155,7 +166,7 @@ pub fn gauss_seidel(matrix: &[f32], b_slice: &[f32], num_rows: usize, timeout: u
     (slice_ptr, slice_len)
 }
 
-pub fn tri_mat_inv(mat_1: Vec<Vec<f32>>, shape: i32) -> Result<Vec<Vec<f32>>, String> {
+fn tri_mat_inv(mat_1: Vec<Vec<f32>>, shape: i32) -> Result<Vec<Vec<f32>>, String> {
     // shape 0 means right-side triangular matrix and 1 is left-side triangular matrix.
     let mut new_mat = Vec::new();
     for i in 0..mat_1.len() {
@@ -172,13 +183,12 @@ pub fn tri_mat_inv(mat_1: Vec<Vec<f32>>, shape: i32) -> Result<Vec<Vec<f32>>, St
                         temp_value += mat_1[i][k] * new_mat[k][j];
                     }
                     new_mat[i].push(-temp_value/mat_1[i][i]);
-                    //     X[i,k] = -L[j, i:j-1]*X[i:j-1,j]/L[j,j]
                 } else { return Err(String::from("Type of a triangular matrix has to be L or R")) }
 
             } else if i < j {
                 if shape == 1 {
                     new_mat[i].push(0.0);
-                } else if shape == 0 { // left-side triangular matrix TODO This need fixes
+                } else if shape == 0 {
                     let mut temp_value = 0.0;
                     for k in i..j {
                         temp_value += mat_1[k][j] * new_mat[i][k];
@@ -191,7 +201,7 @@ pub fn tri_mat_inv(mat_1: Vec<Vec<f32>>, shape: i32) -> Result<Vec<Vec<f32>>, St
     Ok(new_mat)
 }
 
-pub fn mat_mul(mat_1: Vec<Vec<f32>>, mat_2: Vec<Vec<f32>>) -> Result<Vec<Vec<f32>>, String> {
+fn mat_mul(mat_1: Vec<Vec<f32>>, mat_2: Vec<Vec<f32>>) -> Result<Vec<Vec<f32>>, String> {
     let mut res_mat: Vec<Vec<f32>> = Vec::new();
     let x_len = mat_2[0].len();
     let y_len = mat_1.len();
@@ -212,7 +222,7 @@ pub fn mat_mul(mat_1: Vec<Vec<f32>>, mat_2: Vec<Vec<f32>>) -> Result<Vec<Vec<f32
     Ok(res_mat)
 }
 
-pub fn mat_add(mat_1: Vec<Vec<f32>>, mat_2: Vec<Vec<f32>>) -> Result<Vec<Vec<f32>>, String> {
+fn mat_add(mat_1: Vec<Vec<f32>>, mat_2: Vec<Vec<f32>>) -> Result<Vec<Vec<f32>>, String> {
     let mut res_mat: Vec<Vec<f32>> = Vec::new();
     let x_len = mat_1.len();
     let y_len = mat_1[0].len();
@@ -238,7 +248,7 @@ pub fn mat_add(mat_1: Vec<Vec<f32>>, mat_2: Vec<Vec<f32>>) -> Result<Vec<Vec<f32
     Ok(res_mat)
 }
 
-pub fn mat_neg(mat_1: Vec<Vec<f32>>) -> Vec<Vec<f32>> {
+fn mat_neg(mat_1: Vec<Vec<f32>>) -> Vec<Vec<f32>> {
     let mut neg_mat = Vec::new();
     let mut i = 0;
     for row in mat_1 {
