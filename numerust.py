@@ -9,6 +9,21 @@ my_lib = ctypes.CDLL(f'{new_path}/target/release/libtesting.dylib')
 Numerust Wrapper
 '''
 
+def l_square_approx(x, y, degree):
+    my_lib.least_square_approximation.argtypes = [np.ctypeslib.ndpointer(dtype=np.float32), ctypes.c_int, np.ctypeslib.ndpointer(dtype=np.float32), ctypes.c_int, ctypes.c_int]
+    my_lib.least_square_approximation.restype = ctypes.POINTER(ctypes.c_float)
+
+    x_vec = np.array(x, dtype=np.float32)
+    y_vec = np.array(y, dtype=np.float32)
+
+    result_ptr = my_lib.least_square_approximation(x_vec, len(x_vec), y_vec, len(y_vec), degree)
+    result_array = np.ctypeslib.as_array(result_ptr, shape=(degree,))
+    x = result_array.copy()
+    my_lib.free(result_ptr)
+    return x
+
+
+
 def newton_optimization(coefficients, x_start=1.0, eps=1e-6):
     my_lib.newton_optimisation_polynomial.argtypes = [np.ctypeslib.ndpointer(dtype=np.float32), ctypes.c_int, ctypes.c_float, ctypes.c_float]
     my_lib.newton_optimisation_polynomial.restype = ctypes.c_float

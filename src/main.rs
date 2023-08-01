@@ -1,6 +1,9 @@
 use unicode_width::UnicodeWidthStr;
 use std::time::Instant;
 use std::{thread, time};
+use std::arch::aarch64::float32x2_t;
+use std::sync::mpsc;
+// use testing::matrix_inv;
 
 // This is only a testing file for numerical methods and does not change how the library works //
 
@@ -10,13 +13,19 @@ fn main() {
     // let sample_mat: &[f32] = &[20.0, 1.0, 1.0, -1.0, 2.0, -30.0, 3.0, 1.0, -2.0, 3.0, -25.0, 5.1, 2.1, 2.0, 1.11, 27.3];
     // let length= 4;
     // let sample_arr: &[f32] = &[20.0, 1.0, 1.0, -1.0, 2.0, -30.0, 3.0, 1.0, -2.0, 3.0, -25.0, 5.1, 2.1, 2.0, 1.11, 27.3];
-    let sample_arr: &[f32] = &[2.0, 3.0, 5.0, 1.0, 4.0, 6.0, 7.0, 8.0, 9.0];
-    // let sample_arr: &[f32] = &[1.0, 3.0, 2.0, 4.0];
+    // let sample_mat: &[f32] = &[2.0, 3.0, 5.0];
+    // let sample_x: &[f32] = &[2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0];
+    let sample_x: &[f32] = &[2.0, 4.0, 6.0, 8.0, 10.0];
+    // let sample_arr: &[f32] = &[1.0, 3.0, 2.0];
+    // let sample_y: &[f32] = &[-6.0, 18.0, 122.0, 354.0, 762.0, 1394.0, 2298.0, 3522.0, 5114.0];
+    let sample_y: &[f32] = &[-6.0, 18.0, 122.0, 354.0, 762.0];
+
+
     // let sample_mat: &[f32] = &[2.0, 3.0, 5.0, 7.0];
     // let length= 2;
     // let _p = gauss_seidel(&sample_mat,&sample_arr, length, length).unwrap();
-    // least_square_approximation(sample_mat, sample_arr, 4);
-    decomposition_lu(sample_arr, f32::sqrt(sample_arr.len() as f32) as usize);
+    least_square_approximation(sample_x, sample_y, 3);
+    // decomposition_lu(sample_arr, f32::sqrt(sample_arr.len() as f32) as usize);
 
 }
 
@@ -78,26 +87,26 @@ pub fn least_square_approximation(x_arr: &[f32], y_arr: &[f32], degree: usize) /
     for i in 0..degree {
         x_mat.push(Vec::new());
         y_vec.push(Vec::new());
-        y_vec[i].push(0.0);
+        let mut y_sum = 0.0;
         for num in 0..y_arr.len() {
-            y_vec[i][0] += f32::powf(x_arr[num], i as f32) * y_arr[num];
+            y_sum += f32::powf(x_arr[num], i as f32) * y_arr[num];
         }
+        y_vec[i].push(y_sum);
         for j in 0..degree {
-            if i == 0 && j == 0 {
-                x_mat[i].push(degree as f32);
-            } else {
-                x_mat[i].push(0.0);
-                for x in x_arr {
-                    x_mat[i][j] += f32::powf(*x, i as f32 + j as f32);
-                }
+            let mut _sum = 0.0;
+            for x in x_arr {
+                _sum += f32::powf(*x, (i + j) as f32);
             }
+            x_mat[i].push(_sum);
 
         }
 
     }
-
-    vis_mat(x_mat);
-    vis_mat(y_vec);
+    vis_mat(x_mat.clone());
+    vis_mat(y_vec.clone());
+    let inverted_mat = inside_mat_inv(x_mat).unwrap();
+    vis_mat(inverted_mat.clone());
+    vis_mat(mat_mul(inverted_mat, y_vec).unwrap());
     // we need to perform y_vec * x_mat^-1 now and it will be finished
 }
 
@@ -313,4 +322,99 @@ fn make_matrix(vector: &[f32], num_rows: usize, num_columns: usize) -> Result<Ve
         }
         Ok(res_mat)
     }
+}
+
+fn inside_mat_inv(x_arr: Vec<Vec<f32>>) -> Result<Vec<Vec<f32>>, String> {
+    let mut l: Vec<Vec<f32>> = Vec::new();
+    let mut u: Vec<Vec<f32>> = Vec::new();
+    let n = x_arr.len();
+    for i in 0..n {
+        l.push(Vec::new());
+        u.push(Vec::new());
+        for j in 0..n {
+            if i <= j {
+                u[i].push(x_arr[i][j]);
+                for k in 0..i {
+                    u[i][j] -= l[i][k] * u[k][j];
+                }
+                if i == j {
+                    l[i].push(1.0);
+                } else {
+                    l[i].push(0.0);
+                }
+            } else {
+                l[i].push(x_arr[i][j]);
+                for k in 0..j {
+                    l[i][j] -= l[i][k] * u[k][j];
+                }
+                l[i][j] /= u[j][j];
+                u[i].push(0.0);
+            }
+        }
+    }
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let inv_l = tri_mat_inv(l.clone(), 1).unwrap();
+        tx.send(inv_l).unwrap();
+    });
+    let inv_u = tri_mat_inv(u.clone(), 0).unwrap();
+    // let inv_l = tri_mat_inv(l.clone(), 1).unwrap();
+
+    let inv_l= rx.recv().unwrap();
+    // handle.join().unwrap();
+    let inv_mat = mat_mul(inv_u, inv_l).unwrap();
+    Ok(inv_mat)
+}
+
+
+pub fn mat_inv(x_arr: &[f32], n: usize) -> (*const f32, usize) {
+    let mut l: Vec<Vec<f32>> = Vec::new();
+    let mut u: Vec<Vec<f32>> = Vec::new();
+    for i in 0..n {
+        l.push(Vec::new());
+        u.push(Vec::new());
+        for j in 0..n {
+            if i <= j {
+                u[i].push(x_arr[i * n + j]);
+                for k in 0..i {
+                    u[i][j] -= l[i][k] * u[k][j];
+                }
+                if i == j {
+                    l[i].push(1.0);
+                } else {
+                    l[i].push(0.0);
+                }
+            } else {
+                l[i].push(x_arr[i * n + j]);
+                for k in 0..j {
+                    l[i][j] -= l[i][k] * u[k][j];
+                }
+                l[i][j] /= u[j][j];
+                u[i].push(0.0);
+            }
+        }
+    }
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let inv_l = tri_mat_inv(l.clone(), 1).unwrap();
+        tx.send(inv_l).unwrap();
+    });
+    let inv_u = tri_mat_inv(u.clone(), 0).unwrap();
+    // let inv_l = tri_mat_inv(l.clone(), 1).unwrap();
+
+    let inv_l= rx.recv().unwrap();
+    // handle.join().unwrap();
+    let inv_mat = mat_mul(inv_u, inv_l).unwrap();
+    let mut temp_vec = Vec::new();
+    for i in inv_mat {
+        for j in i {
+            temp_vec.push(j);
+        }
+    }
+
+    let slice_ptr = temp_vec.as_slice().as_ptr();
+    let slice_len = temp_vec.len();
+    std::mem::forget(temp_vec);
+    // slice_ptr
+    (slice_ptr, slice_len)
 }

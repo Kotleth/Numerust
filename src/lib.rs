@@ -60,31 +60,44 @@ pub fn matrix_inv(x_arr: &[f32], n: usize) -> (*const f32, usize) {
     (slice_ptr, slice_len)
 }
 
-// #[no_mangle]
-// pub fn least_square_approximation(x_arr: &[f32], y_arr: &[f32], degree: i32) //-> (*const f32, usize)
-// {
-//     let mut x_mat = Vec::new();
-//     let mut y_vec = Vec::new();
-//     for i in 0..degree {
-//         x_mat.push(Vec::new());
-//         for j in 0..degree {
-//             if i == 0 && j == 0 {
-//                 x_mat[i].push(degree as f32);
-//             } else {
-//                 x_mat[i].push(0.0);
-//                 for x in *x_arr {
-//                     x_mat[i][j] += f32::powf(x, i as f32 + j as f32);
-//                 }
-//             }
-//
-//         }
-//
-//     }
-//     // placeholder for now...
-        // let inv_l = tri_mat_inv(l.clone(), 1).unwrap();
-        // let inv_u = tri_mat_inv(u.clone(), 0).unwrap();
-        // mat_mul(inv_u, inv_l).unwrap()
-// }
+#[no_mangle]
+pub fn least_square_approximation(x_arr: &[f32], y_arr: &[f32], degree: usize) -> (*const f32, usize)
+{ // TODO check at the beginning if x_arr.len() == y_arr.len()
+    let mut x_mat: Vec<Vec<f32>> = Vec::new();
+    let mut y_vec: Vec<Vec<f32>> = Vec::new();
+    for i in 0..degree {
+        x_mat.push(Vec::new());
+        y_vec.push(Vec::new());
+        let mut y_sum = 0.0;
+        for num in 0..y_arr.len() {
+            y_sum += f32::powf(x_arr[num], i as f32) * y_arr[num];
+        }
+        y_vec[i].push(y_sum);
+        for j in 0..degree {
+            let mut x_sum = 0.0;
+            for x in x_arr {
+                x_sum += f32::powf(*x, i as f32 + j as f32);
+            }
+            x_mat[i].push(x_sum);
+        }
+
+    }
+    // vis_mat(x_mat.clone());
+    // vis_mat(y_vec.clone());
+    let inverted_mat = inside_mat_inv(x_mat).unwrap();
+    let final_vec = mat_mul(inverted_mat, y_vec).unwrap();
+    // vis_mat(inverted_mat);
+    let mut temp_vec = Vec::new();
+    for i in &final_vec {
+        temp_vec.push(i[0]);
+    }
+    let slice_ptr = temp_vec.as_slice().as_ptr();
+    let slice_len = temp_vec.len();
+    std::mem::forget(temp_vec);
+    // slice_ptr
+    (slice_ptr, slice_len)
+    // we need to perform y_vec * x_mat^-1 now and it will be finished
+}
 
 #[no_mangle]
 pub fn newton_optimisation_polynomial(x_multipliers: &[f32], x_first: f32, error: f32) -> f32 {
@@ -352,6 +365,48 @@ pub fn vis_mat(vector: &[f32], num_rows: usize, num_columns: usize) -> std::io::
     }
     file.flush().unwrap();
     Ok(())
+}
+
+fn inside_mat_inv(x_arr: Vec<Vec<f32>>) -> Result<Vec<Vec<f32>>, String> {
+    let mut l: Vec<Vec<f32>> = Vec::new();
+    let mut u: Vec<Vec<f32>> = Vec::new();
+    let n = x_arr.len();
+    for i in 0..n {
+        l.push(Vec::new());
+        u.push(Vec::new());
+        for j in 0..n {
+            if i <= j {
+                u[i].push(x_arr[i][j]);
+                for k in 0..i {
+                    u[i][j] -= l[i][k] * u[k][j];
+                }
+                if i == j {
+                    l[i].push(1.0);
+                } else {
+                    l[i].push(0.0);
+                }
+            } else {
+                l[i].push(x_arr[i][j]);
+                for k in 0..j {
+                    l[i][j] -= l[i][k] * u[k][j];
+                }
+                l[i][j] /= u[j][j];
+                u[i].push(0.0);
+            }
+        }
+    }
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let inv_l = tri_mat_inv(l.clone(), 1).unwrap();
+        tx.send(inv_l).unwrap();
+    });
+    let inv_u = tri_mat_inv(u.clone(), 0).unwrap();
+    // let inv_l = tri_mat_inv(l.clone(), 1).unwrap();
+
+    let inv_l= rx.recv().unwrap();
+    // handle.join().unwrap();
+    let inv_mat = mat_mul(inv_u, inv_l).unwrap();
+    Ok(inv_mat)
 }
 
 fn format_width(input: &str, width: usize, fill_char: char) -> String {
