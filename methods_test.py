@@ -21,15 +21,11 @@ def test_least_sq_approx(x, y, degree):
     # return x
 
 if __name__ == "__main__":
-    print(np.linalg.inv([[9, 90, 1140], [90, 1140, 16200], [1140, 16200, 245328]]))
-
     some_x = [2.0, 4.0, 6.0, 8.0, 10.0]
     some_y = []
-    # print(some_x)
     for x in some_x:
         some_y.append(2 - 4*x - 2*x**2 + x**3)
-    print(some_y)
-    test_least_sq_approx(some_x, some_y, 3)
+    test_least_sq_approx(some_x, some_y, 12)
 
 
 # matrix = [[2.0, 3.0, 5.0, 6.0], [1.0, 4.0, 6.0, 9.0], [7.0, 8.0, 9.0, 11.0], [3.0, -4.0, 7.0, 13.0]]
